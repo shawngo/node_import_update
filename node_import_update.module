@@ -11,7 +11,6 @@
  */
 function node_import_update_menu() {
   $items = array();
-  // $items['admin/settings/node_import_update'] = array(
   $items['admin/content/node_import/node_import_update_settings'] = array(
     'title' => 'Node Import Update',
     'description' => 'Update current nodes at import.',
@@ -19,7 +18,6 @@ function node_import_update_menu() {
     'page arguments' => array('node_import_update_admin_settings_form'),
     'file' => 'node_import_update.admin.inc',
     'access arguments' => array('administer node import update'),
-    // 'type' => MENU_NORMAL_ITEM,
     'type' => MENU_LOCAL_TASK,
   );
   return $items;
@@ -40,6 +38,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
     // reaching out to $_POST to get the node_import_update_unique_key value
     // somehow it didn't make its way into $form or $form_state
     if (isset($_POST['node_import_update_unique_key'])) {
+      // @TODO make this better
       variable_set('node_import_update_unique_key', check_plain($_POST['node_import_update_unique_key']));
     }
 
@@ -50,8 +49,6 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
       // get the content type immediately after it is set
       case 'options':
-        if ($debug) dsm(array('form' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'values' => $values, '$_POST' => $_POST));
-
         $data_type = explode(':', $values['type']);
         $node_import_update_is_cck = FALSE;
         $is_product = FALSE;
@@ -81,6 +78,8 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
     /**
      * Set custom data
      * These should/could be defined in admin
+     *
+     * @TODO refactor
      */
 
     $IMPORT_NTYPE            = variable_get('node_import_update_content_type', '');   // Node type to be imported
@@ -143,20 +142,14 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
             $form['changed']['#value'] = time();
           }
           else {
-
             // create timestamp from string date
             $timestamp = strtotime($form['#post']['changed']);
-
             // set timestamp value for the below
             $form['changed']['#default_value'] = $timestamp;
-
           }
         }
       }
     }
-  }
-  else {
-    if ($debug) drupal_set_message(arg(2));
   }
 }
 
@@ -183,8 +176,7 @@ function node_import_update_node_import_field_table($form) {
   $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'title');
 
   if ($map_unique_key) {
-    $Header [] = 'Update Key';
-    dpm(array('theme override' => $form));
+    $header [] = 'Update Key';
     $niu_unique_default_value = $node_import_update_unique_key;
     $colspan = 3;
   }

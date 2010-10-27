@@ -28,18 +28,5 @@ function node_import_update_admin_settings_form(&$form_state) {
     '#options' => array('enabled' => t('Enabled'), 'disabled' => t('Disabled')),
   );
 
-  /*
-  module_load_include('inc', 'node_import');
-  $types = node_import_types();
-
-  $type_titles = node_import_extract_property($types, 'title');
-  $default = count($type_titles) == 1 ? key($type_titles) : '';
-  $form['niu_settings']['niu_settings_types'] = array(
-    '#type' => 'radios',
-    '#title' => t('Content type'),
-    '#options' => $type_titles,
-    '#default_value' => variable_get('node_import_update_settings_types', array()),
-  );
-  */
   return system_settings_form($form);
 }
