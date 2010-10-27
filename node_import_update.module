@@ -1,0 +1,292 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Update current nodes at node import.
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function node_import_update_menu() {
+  $items = array();
+  // $items['admin/settings/node_import_update'] = array(
+  $items['admin/content/node_import/node_import_update_settings'] = array(
+    'title' => 'Node Import Update',
+    'description' => 'Update current nodes at import.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('node_import_update_admin_settings_form'),
+    'file' => 'node_import_update.admin.inc',
+    'access arguments' => array('administer node import update'),
+    // 'type' => MENU_NORMAL_ITEM,
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function node_import_update_form_alter(&$form, &$form_state, $form_id) {
+  $debug = FALSE;
+
+  // Check if we are importing
+  if (arg(2) == 'node_import') {
+
+    if ($debug) dpm(array('name' => 'foopers', '$_POST' => $_POST, 'content_type' => $content_type, 'is_product' => $is_product, 'form' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'values' => $values));
+
+    // reaching out to $_POST to get the node_import_update_unique_key value
+    // somehow it didn't make its way into $form or $form_state
+    if (isset($_POST['node_import_update_unique_key'])) {
+      variable_set('node_import_update_unique_key', check_plain($_POST['node_import_update_unique_key']));
+    }
+
+    $values = $form_state['storage'];
+    switch ($values['page']) {
+      case 'map':
+        break;
+
+      // get the content type immediately after it is set
+      case 'options':
+        if ($debug) dsm(array('form' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'values' => $values, '$_POST' => $_POST));
+
+        $data_type = explode(':', $values['type']);
+        $node_import_update_is_cck = FALSE;
+        $is_product = FALSE;
+
+        switch ($data_type[0]) {
+          case 'node':
+            $content_type = $data_type[1];
+            if (module_exists('uc_product')) {
+              $is_product = uc_product_is_product($content_type);
+            }
+            break;
+          case 'cck':
+            $node_import_update_is_cck = TRUE;
+            break;
+          default:
+            $content_type = NULL;
+        }
+
+        // set update vars
+        variable_set('node_import_update_content_type', $content_type);
+        variable_set('node_import_update_is_product', $is_product);
+        variable_set('node_import_update_unique_key', $form_state['clicked_button']['#post']['map']['node_import_update_unique_key']);
+        variable_set('node_import_update_is_cck', $node_import_update_is_cck);
+        break;
+    }
+
+    /**
+     * Set custom data
+     * These should/could be defined in admin
+     */
+
+    $IMPORT_NTYPE            = variable_get('node_import_update_content_type', '');   // Node type to be imported
+    $IMPORT_UPDATE_DATETIME  = TRUE;        // Settting: update date/time value?
+
+
+    // Alter node edit form
+    if ($form_id == $IMPORT_NTYPE .'_node_form') {
+      $IMPORT_UNIQUE_ID_NAME   = variable_get('node_import_update_unique_key', FALSE);  // Import field that holds the unique identifier
+      $IMPORT_UNIQUE_ID_IS_CCK = variable_get('node_import_update_is_cck', FALSE);      // Is the identifier a CCK field?
+      $IMPORT_UNIQUE_ID_IS_UC  = variable_get('node_import_update_is_product', FALSE);  // Is the identifier an Ubercart field?
+
+      $viz = array('$IMPORT_UNIQUE_ID_NAME' => $IMPORT_UNIQUE_ID_NAME, '$IMPORT_UNIQUE_ID_IS_CCK' => $IMPORT_UNIQUE_ID_IS_CCK, '$IMPORT_UNIQUE_ID_IS_UC' => $IMPORT_UNIQUE_ID_IS_UC);
+      if ($debug) dpm(array('viz' => $viz, 'generated form_id:' => $IMPORT_NTYPE .'_node_form', 'importing form: ' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'unique value: ' => $unique_id_value));
+
+      // Check if item already exists
+      if ($IMPORT_UNIQUE_ID_IS_CCK) {
+        // get unique id from cck fields
+        $unique_id_value = $form['#post']['cck:field_import_id:value'][0];
+        // build query
+        $query = 'SELECT c.nid, c.vid FROM {content_type_%s} c WHERE c.%s = "%s"';
+      }
+      elseif ($IMPORT_UNIQUE_ID_IS_UC) {
+        $IMPORT_UNIQUE_ID_NAME = 'model';
+        // get "unique" id
+        $unique_id_value = $form['#post']['model']; // ['cck:field_import_id:value'][0];
+        // build query
+        $query = 'SELECT u.nid, u.vid FROM {uc_products} u WHERE u.%s = "%s"';
+      }
+      else {
+        // get unique id for node values
+        $unique_id_value = $form['#post'][$IMPORT_UNIQUE_ID_NAME];
+        // build query
+        $query = 'SELECT n.nid, n.vid FROM {node} n WHERE n.type = "%s" AND n.%s = "%s"';
+      }
+
+      // Check if we have a unique id
+      if ($unique_id_value) {
+        if ($debug) drupal_set_message(t('I HAVE A $unique_id_value!!! It is: %message', $unique_id_value));
+        // execute query
+        if ($IMPORT_UNIQUE_ID_IS_UC) {
+          $row = db_fetch_array(db_query($query, $IMPORT_UNIQUE_ID_NAME, $unique_id_value));
+        }
+        else {
+          $row = db_fetch_array(db_query($query, $IMPORT_NTYPE, $IMPORT_UNIQUE_ID_NAME, $unique_id_value));
+        }
+
+        // Destroy so we don't pass an array on next iteration
+        unset($query);
+
+        // If already exists (non empty result)
+        if (!empty($row['nid'])) {
+
+          // Set nid and vid to that node
+          $form['nid']['#value']= intval($row['nid']);
+          $form['vid']['#value']= intval($row['vid']);
+
+          // Set time to last updated
+          if ($IMPORT_UPDATE_DATETIME) {
+            $form['changed']['#value'] = time();
+          }
+          else {
+
+            // create timestamp from string date
+            $timestamp = strtotime($form['#post']['changed']);
+
+            // set timestamp value for the below
+            $form['changed']['#default_value'] = $timestamp;
+
+          }
+        }
+      }
+    }
+  }
+  else {
+    if ($debug) drupal_set_message(arg(2));
+  }
+}
+
+/**
+ * Implementation of hook_theme_registry_alter().
+ */
+function node_import_update_theme_registry_alter(&$theme_registry) {
+  if (!empty($theme_registry['node_import_field_table'])) {
+    $theme_registry['node_import_field_table']['function'] = 'node_import_update_node_import_field_table';
+  }
+}
+
+/**
+ * Theme the mapping, defaults and options tables.
+ */
+function node_import_update_node_import_field_table($form) {
+  $header = $form['#node_import-columns'];
+  $rows = array();
+  $groups = array();
+
+  // update table/form during "map" page in import wizard
+  $map_unique_key = ('map' == $form['#parents'][0]);
+
+  $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'title');
+
+  if ($map_unique_key) {
+    $Header [] = 'Update Key';
+    dpm(array('theme override' => $form));
+    $niu_unique_default_value = $node_import_update_unique_key;
+    $colspan = 3;
+  }
+  else {
+    // use node_import's default table theme function
+    return theme_node_import_field_table($form);
+  }
+
+  /**
+   * loop over the form elements - if
+   */
+  $elz = array();
+  foreach (element_children($form) as $child) {
+    if (!isset($form[$child]['#type']) || $form[$child]['#type'] != 'value') {
+      $elz[] = $child;
+      $title = check_plain($form[$child]['#title']);
+      $group = isset($form[$child]['#node_import-group']) ? $form[$child]['#node_import-group'] : '';
+      unset($form[$child]['#title']);
+
+      if (!isset($groups[$group])) {
+        $groups[$group] = array();
+      }
+
+      /**
+       * value in the form of
+       *   map[taxonomy:1][]
+       *   map[node_import_update_unique_key][taxonomy:1][]
+       */
+
+      if ($map_unique_key && unique_qualifier($child)) {
+        $return_value = check_plain($child);
+        $form['node_import_update_unique_key'][$child] = array(
+          '#name' => 'map[node_import_update_unique_key]',
+          '#type' => 'radio',
+          '#default_value' => $niu_unique_default_value,
+          '#return_value' => $return_value,
+          '#attributes' => array('align' => 'center'),
+        );
+
+        if ($return_value == $niu_unique_default_value) {
+          $form['node_import_update_unique_key'][$child]['#attributes']['checked'] = 'checked';
+        }
+
+        $element = drupal_render($form['node_import_update_unique_key'][$child]);
+
+      }
+      else {
+        $element = '';
+      }
+
+      $groups[$group][] = array(
+        check_plain($title),
+        drupal_render($form[$child]),
+        $element,
+      );
+    }
+  }
+
+  if ($debug) drupal_set_message(t('fizzles %mu', theme('item_list', $elz)));
+
+  if (isset($groups['']) && !empty($groups[''])) {
+    $rows = array_merge($rows, $groups['']);
+  }
+
+  foreach ($groups as $group => $items) {
+    if ($group !== '' && !empty($items)) {
+      $rows[] = array(
+        array('data' => $group, 'colspan' => $colspan, 'class' => 'region'),
+      );
+      $rows = array_merge($rows, $items);
+    }
+  }
+
+  if (empty($rows)) {
+    $rows[] = array(array('data' => $form['#node_import-empty'], 'colspan' => $colspan));
+  }
+
+  return theme('table', $header, $rows) . drupal_render($form);
+}
+
+function unique_qualifier($item) {
+  $unique = array('title', 'model');
+  $pattern = "/^cck:[a-zA-Z_]+:value$/"; // Example: cck:field_product_text_field:value
+  return preg_match($pattern, $item) || in_array($item, $unique);
+}
+
+// module below ensures existing nodes are updated, to avoid duplication
+// kept for the time-being for leagacy sake. May borrow image field handling code, as this remains untested in new code above.
+/* function node_import_update_form_product_node_form_alter($data)
+{
+  $sku = $data['#post']['model'];
+  if (is_numeric($sku)){
+    $sku = intval($sku) ;
+    $row = db_fetch_array(db_query("SELECT uc_products.nid, uc_products.vid, content_field_image_cache.field_image_cache_fid, content_field_image_cache.field_image_cache_list, content_field_image_cache.field_image_cache_data FROM uc_products, content_field_image_cache WHERE uc_products.model = %d AND uc_products.nid = content_field_image_cache.nid LIMIT 1", $sku));
+    if (!empty($row)){
+      $data['nid']['#value']= intval($row['nid']);
+      $data['vid']['#value']= intval($row['vid']);
+      $data['#post']['field_image_cache'] = Array(Array('data' => $row['field_image_cache_data'], 'list' => $row['field_image_cache_list'], 'fid' => $row['field_image_cache_fid']));
+      $data['#post']['cck:field_image_cache:data'] = $row['field_image_cache_data'];
+      $data['#post']['cck:field_image_cache:fid'] = $row['field_image_cache_fid'];
+      $data['#post']['cck:field_image_cache:list'] = $row['field_image_cache_list'];
+      $data['changed']['#value']= time ();
+    }
+  }
+} */

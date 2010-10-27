@@ -1,0 +1,20 @@
+<?php
+// $Id$
+/**
+ * @file
+ * Node Import Update:
+ *
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function node_import_update_uninstall() {
+  // Clear variables
+  variable_del('node_import_update_settings_enabled');
+  variable_del('node_import_update_settings_types');
+  variable_del('node_import_update_content_type');
+  variable_del('node_import_update_unique_key');
+  variable_del('node_import_update_is_product');
+  variable_del('node_import_update_is_cck');
+}
