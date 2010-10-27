@@ -176,7 +176,7 @@ function node_import_update_node_import_field_table($form) {
   $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'title');
 
   if ($map_unique_key) {
-    $header [] = 'Update Key';
+    $header [] = 'Update key';
     $niu_unique_default_value = $node_import_update_unique_key;
     $colspan = 3;
   }

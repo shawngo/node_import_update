@@ -2,8 +2,8 @@
 // $Id$
 /**
  * @file
- * Node Import Update:
- *
+ * Node Import Update: add node update capabilities to node_import
+ * Install or remove variables
  */
 
 /**

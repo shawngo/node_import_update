@@ -2,8 +2,7 @@
 // $Id$
 /**
  * @file
- * Node Import Update:
- *
+ * Admin settings
  */
 
 /**
