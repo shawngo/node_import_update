@@ -6,6 +6,109 @@
  * Update current nodes at node import.
  */
 
+variable_del('niu about to import');
+variable_del('niu form post zomg');
+variable_del('niu is row[nid] empty');
+variable_del('niu nid and vid on import');
+variable_del('niu nodeapi');
+variable_del('niu_query');
+variable_del('niu_where_am_i');
+
+
+define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
+
+// node_import_update_node_import_values_alter
+
+function node_import_update_node_import_options_alter(&$form, $type, $options, $fields, $map) {
+  dpm('is this called now node_import_update_node_import_options_alter');
+  dpm(array($map,$form));
+  variable_set('node_import_update_map_save', $map);
+}
+
+function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
+
+  /**
+   * this function is called for each of the node import actions. &$values
+   * contains the values to be imported into this node.
+   *
+   * we can then node_load the existing node to get its current values.
+   *
+   * we have to merge these arrays somehow.
+   *
+   * $values has new values and nulled values
+   *
+   * node_load()ed $nodey has all current data.
+   *
+   * if we had a list of the fields being imported (list_of_fields)
+   *  - and based on a (skip | clear) option to either skip the value if new
+   *    value is empty - or - clear it from the current node
+   *    - skip: the transfer would remove empty fields in list_of_fields
+   *    - clear: the transfer would preserve the fields in the list_of_fields
+   *
+   */
+
+  dpm('we may have a map');
+  $map = variable_get('node_import_update_map_save', array());
+  dpm(array('orig map' => $map));
+  foreach ($map as $map_key => $map_data) {
+    /*
+     * 1. normal field
+     * 2. cck field
+     *   a. string
+     *   b. array
+     * 3. taxonomy
+     *   a. array
+     *
+     * determine what the real key is called and add to map list if not empty
+     *
+     */
+    if (strstr($map_key, 'cck:field_')) {
+      if (is_array($map_data)) {
+        if (empty($map_data)) {
+          unset($map[$map_key]);
+        }
+        else {
+          // cck field not empty, move the name over to $map
+          $cck_fieldname = explode(':', $map_key);
+          $cck_field = $cck_fieldname[1];
+          $map[$cck_field] = $map[$map_key];
+        }
+      }
+      elseif ($map[$map_key] == '') {
+        unset($map[$map_key]);
+      }
+    }
+    else {
+      if ($map_data == '') {
+        unset($map[$map_key]);
+      }
+    }
+  }
+  dpm(array('modded map' => $map));
+  //variable_set('node_import_update_map_save', $map);
+
+  $nodey = (array) node_load($values['nid']);
+
+  foreach ($map as $key => $val) {
+    unset($nodey[$key]);
+  }
+
+  
+  $values = array_merge($values, (array)$nodey);
+  $values['nodey'] = $nodey;
+  dpm(array(
+    'node_import_update_node_import_values_alter',
+    'values' => array(
+      'values' => $values,
+      'type' => $type,
+      'defaults' => $defaults,
+      'options' => $options,
+      'fields' => $fields,
+      'preview' => $preview
+    ),
+  ));
+}
+
 /**
  * Implementation of hook_menu().
  */
@@ -23,48 +126,56 @@ function node_import_update_menu() {
   return $items;
 }
 
+/**
+ * validation function for Update data using Node Import Update field
+ */
+function node_import_update_check_validate($element, &$form_state) {
+  // set update flag. may have to use a more dynamic / per instance approach
+  // since this will affect concurrent node imports
+  variable_set('node_import_update_do_update', $element['#value'] == 1);
+  dpm(array('validate firing', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
+}
 
 /**
  * Implementation of hook_form_alter().
  */
 function node_import_update_form_alter(&$form, &$form_state, $form_id) {
-  $debug = FALSE;
 
-  // Check if we are importing
+  // Check if we are walking through the import wizard, add options and overrides.
   if (arg(2) == 'node_import') {
 
-    if ($debug) dpm(array('name' => 'foopers', '$_POST' => $_POST, 'content_type' => $content_type, 'is_product' => $is_product, 'form' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'values' => $values));
-
-    // reaching out to $_POST to get the node_import_update_unique_key value
-    // somehow it didn't make its way into $form or $form_state
-    if (isset($_POST['node_import_update_unique_key'])) {
-      // @TODO make this better
-      variable_set('node_import_update_unique_key', check_plain($_POST['node_import_update_unique_key']));
-    }
-
     $values = $form_state['storage'];
+
+    // switch on the different state (page) of the wizard.. unicorns.
     switch ($values['page']) {
+      case 'file_options':
+        // Add Node Import Update flag to the options settings
+        $form['node_import_update_check'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Update data using Node Import Update'),
+          '#description' => t('Check this option if you want to update the data based on a Field Key'),
+          '#default_value' => TRUE,
+          '#weight' => 0,
+          '#element_validate' => array('node_import_update_check_validate'),
+        );
+        break;
+
+      // just in case we want to add Misery support or something...
       case 'map':
         break;
 
       // get the content type immediately after it is set
       case 'options':
-        $data_type = explode(':', $values['type']);
-        $node_import_update_is_cck = FALSE;
-        $is_product = FALSE;
+        $info_type = explode(':', $form_state['clicked_button']['#post']['map']['node_import_update_unique_key']);
+        $data_type = explode(':', $form['#parameters'][1]['storage']['type']);
 
-        switch ($data_type[0]) {
-          case 'node':
-            $content_type = $data_type[1];
-            if (module_exists('uc_product')) {
-              $is_product = uc_product_is_product($content_type);
-            }
-            break;
-          case 'cck':
-            $node_import_update_is_cck = TRUE;
-            break;
-          default:
-            $content_type = NULL;
+        // get the content type being updated
+        $content_type = $data_type[1];
+        $node_import_update_is_cck = $info_type[0] == 'cck';
+
+        // if uc_product enabled, check to see if this is a product
+        if (module_exists('uc_product')) {
+          $is_product = uc_product_is_product($content_type);
         }
 
         // set update vars
@@ -72,59 +183,69 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         variable_set('node_import_update_is_product', $is_product);
         variable_set('node_import_update_unique_key', $form_state['clicked_button']['#post']['map']['node_import_update_unique_key']);
         variable_set('node_import_update_is_cck', $node_import_update_is_cck);
+        
         break;
     }
 
+
     /**
-     * Set custom data
-     * These should/could be defined in admin
-     *
-     * @TODO refactor
+     * if form_id == {import_node_type}_node_form, we're either previewing the
+     * import or else executing the import update.
+     * Search for nodes to update.
      */
 
-    $IMPORT_NTYPE            = variable_get('node_import_update_content_type', '');   // Node type to be imported
-    $IMPORT_UPDATE_DATETIME  = TRUE;        // Settting: update date/time value?
+    // Node type to be imported
+    $import_node_type = variable_get('node_import_update_content_type', '');
+    // Settting: update date/time value?
+    $import_update_datetime  = variable_get('node_import_update_update_date', TRUE);
 
 
     // Alter node edit form
-    if ($form_id == $IMPORT_NTYPE .'_node_form') {
-      $IMPORT_UNIQUE_ID_NAME   = variable_get('node_import_update_unique_key', FALSE);  // Import field that holds the unique identifier
-      $IMPORT_UNIQUE_ID_IS_CCK = variable_get('node_import_update_is_cck', FALSE);      // Is the identifier a CCK field?
-      $IMPORT_UNIQUE_ID_IS_UC  = variable_get('node_import_update_is_product', FALSE);  // Is the identifier an Ubercart field?
+    if ($form_id == $import_node_type .'_node_form') {
+      // Import field that holds the unique identifier
+      $import_unique_id_name   = variable_get('node_import_update_unique_key', FALSE);
+      // Is the identifier a CCK field?
+      $import_unique_id_is_cck = variable_get('node_import_update_is_cck', FALSE);
 
-      $viz = array('$IMPORT_UNIQUE_ID_NAME' => $IMPORT_UNIQUE_ID_NAME, '$IMPORT_UNIQUE_ID_IS_CCK' => $IMPORT_UNIQUE_ID_IS_CCK, '$IMPORT_UNIQUE_ID_IS_UC' => $IMPORT_UNIQUE_ID_IS_UC);
-      if ($debug) dpm(array('viz' => $viz, 'generated form_id:' => $IMPORT_NTYPE .'_node_form', 'importing form: ' => $form, 'form_state' => $form_state, 'form_id' => $form_id, 'unique value: ' => $unique_id_value));
+      // flag to determine if we're updating based on the Ubercart model field
+      $import_unique_id_is_uc = FALSE;
 
-      // Check if item already exists
-      if ($IMPORT_UNIQUE_ID_IS_CCK) {
+      // Check if item exists so we can update it rather than importing a new node
+
+      // are we keying off of a cck field?
+      if ($import_unique_id_is_cck) {
         // get unique id from cck fields
         $unique_id_value = $form['#post']['cck:field_import_id:value'][0];
         // build query
         $query = 'SELECT c.nid, c.vid FROM {content_type_%s} c WHERE c.%s = "%s"';
       }
-      elseif ($IMPORT_UNIQUE_ID_IS_UC) {
-        $IMPORT_UNIQUE_ID_NAME = 'model';
+      // is this keying off the Ubercart model field?
+      elseif ($node_import_update_unique_key == 'model') {
+        $import_unique_id_name = 'model';
         // get "unique" id
         $unique_id_value = $form['#post']['model']; // ['cck:field_import_id:value'][0];
         // build query
         $query = 'SELECT u.nid, u.vid FROM {uc_products} u WHERE u.%s = "%s"';
+        $import_unique_id_is_uc = TRUE;
       }
+      // key is using either nid or node title
       else {
         // get unique id for node values
-        $unique_id_value = $form['#post'][$IMPORT_UNIQUE_ID_NAME];
+        $unique_id_value = $form['#post'][$import_unique_id_name];
         // build query
         $query = 'SELECT n.nid, n.vid FROM {node} n WHERE n.type = "%s" AND n.%s = "%s"';
       }
 
       // Check if we have a unique id
       if ($unique_id_value) {
-        if ($debug) drupal_set_message(t('I HAVE A $unique_id_value!!! It is: %message', $unique_id_value));
         // execute query
-        if ($IMPORT_UNIQUE_ID_IS_UC) {
-          $row = db_fetch_array(db_query($query, $IMPORT_UNIQUE_ID_NAME, $unique_id_value));
+        // we use a different query if this is keying off of the model field
+        if ($import_unique_id_is_uc) {
+          $row = db_fetch_array(db_query($query, $import_unique_id_name, $unique_id_value));
         }
+        // use cck, node id or title field query
         else {
-          $row = db_fetch_array(db_query($query, $IMPORT_NTYPE, $IMPORT_UNIQUE_ID_NAME, $unique_id_value));
+          $row = db_fetch_array(db_query($query, $import_node_type, $import_unique_id_name, $unique_id_value));
         }
 
         // Destroy so we don't pass an array on next iteration
@@ -136,9 +257,14 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
           // Set nid and vid to that node
           $form['nid']['#value']= intval($row['nid']);
           $form['vid']['#value']= intval($row['vid']);
+          $node = node_load($row['nid'], $row['vid']);
+          $form['#node'] = $node;
+
+variable_set('niu insert node', $form);
+
 
           // Set time to last updated
-          if ($IMPORT_UPDATE_DATETIME) {
+          if ($import_update_datetime) {
             $form['changed']['#value'] = time();
           }
           else {
@@ -153,6 +279,33 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
+
+/**
+ * Implementation of hook_node_import_fields() to add the nid field.
+ *
+ * @param $type string the content type being updated
+ * @return array fields array of new fields to add to the form
+ */
+function node_import_update_node_import_fields ($type) {
+
+  if (!variable_get('node_import_update_do_update', FALSE)) {
+    return array();
+  }
+  // add the Node ID field to use as update key (unique value to search for nodes
+  // when executing node import
+  $fields = array(
+    'nid' => array(
+      'title' => 'Node ID',
+      'module' => 'node_import_update',
+      'weight' => '-1',
+      'is_mappable' => TRUE,
+      'group' => 'Node Import Update',
+    ),
+  );
+  return $fields;
+}
+
+
 /**
  * Implementation of hook_theme_registry_alter().
  */
@@ -162,20 +315,24 @@ function node_import_update_theme_registry_alter(&$theme_registry) {
   }
 }
 
+
 /**
  * Theme the mapping, defaults and options tables.
+ *
+ * We are overriding this to add the Update key column which is used to select
+ * which update key to use as a unique value when searching for nodes to update.
+ * 
  */
-function node_import_update_node_import_field_table($form) {
+function node_import_update_node_import_field_table(&$form) {
   $header = $form['#node_import-columns'];
   $rows = array();
   $groups = array();
 
   // update table/form during "map" page in import wizard
   $map_unique_key = ('map' == $form['#parents'][0]);
+  $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'nid');
 
-  $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'title');
-
-  if ($map_unique_key) {
+  if (variable_get('node_import_update_do_update', FALSE) && $map_unique_key) {
     $header [] = 'Update key';
     $niu_unique_default_value = $node_import_update_unique_key;
     $colspan = 3;
@@ -186,12 +343,11 @@ function node_import_update_node_import_field_table($form) {
   }
 
   /**
-   * loop over the form elements - if
+   * loop over the form elements
    */
-  $elz = array();
+  dpm(array('this is the form about to be rendered', 'form' => $form, 'form children' => element_children($form)));
   foreach (element_children($form) as $child) {
     if (!isset($form[$child]['#type']) || $form[$child]['#type'] != 'value') {
-      $elz[] = $child;
       $title = check_plain($form[$child]['#title']);
       $group = isset($form[$child]['#node_import-group']) ? $form[$child]['#node_import-group'] : '';
       unset($form[$child]['#title']);
@@ -208,6 +364,7 @@ function node_import_update_node_import_field_table($form) {
 
       if ($map_unique_key && unique_qualifier($child)) {
         $return_value = check_plain($child);
+
         $form['node_import_update_unique_key'][$child] = array(
           '#name' => 'map[node_import_update_unique_key]',
           '#type' => 'radio',
@@ -235,8 +392,6 @@ function node_import_update_node_import_field_table($form) {
     }
   }
 
-  if ($debug) drupal_set_message(t('fizzles %mu', theme('item_list', $elz)));
-
   if (isset($groups['']) && !empty($groups[''])) {
     $rows = array_merge($rows, $groups['']);
   }
@@ -257,12 +412,19 @@ function node_import_update_node_import_field_table($form) {
   return theme('table', $header, $rows) . drupal_render($form);
 }
 
+/**
+ * determines if the item is a unique field that can be used as a "primary key"
+ * of sorts when updating nodes.
+ */
 function unique_qualifier($item) {
-  $unique = array('title', 'model');
+  $unique = array('title', 'model', 'nid');
   $pattern = "/^cck:[a-zA-Z_]+:value$/"; // Example: cck:field_product_text_field:value
   return preg_match($pattern, $item) || in_array($item, $unique);
 }
 
+function get_unique_qualifiers() {
+  return array('title', 'model', 'nid');
+}
 // module below ensures existing nodes are updated, to avoid duplication
 // kept for the time-being for leagacy sake. May borrow image field handling code, as this remains untested in new code above.
 /* function node_import_update_form_product_node_form_alter($data)
