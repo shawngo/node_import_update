@@ -6,15 +6,6 @@
  * Update current nodes at node import.
  */
 
-variable_del('niu about to import');
-variable_del('niu form post zomg');
-variable_del('niu is row[nid] empty');
-variable_del('niu nid and vid on import');
-variable_del('niu nodeapi');
-variable_del('niu_query');
-variable_del('niu_where_am_i');
-
-
 define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
 
 // node_import_update_node_import_values_alter
@@ -25,31 +16,150 @@ function node_import_update_node_import_options_alter(&$form, $type, $options, $
   variable_set('node_import_update_map_save', $map);
 }
 
+/*
+ * Implementation of hook_node_import_values
+ *
+ * Create an array of values to submit to the form.
+ *
+ * @param $type
+ *   String. The node_import type.
+ *
+ * @param $data
+ *   Array of data from the file as ($col_index => $value).
+ *
+ * @param $map
+ *   Array of how the data maps to fields.
+ *
+ * @param $defaults
+ *   Array of default values.
+ *
+ * @param $options
+ *   Array of options.
+ *
+ * @param $fields
+ *   Array of available fields.
+ *
+ * @param $preview
+ *   Boolean. If TRUE a preview will be created. If FALSE construct the
+ *   values for real.
+ *
+ * @return
+ *   Array of values to submit to a form. See hook_node_import_values().
+ */
+function node_import_update_node_import_values($type, $defaults, $options, $fields, $preview) {
+  if ($preview) {
+    dpm(array('from our new best friend node_import_update_node_import_values',
+        '$type' => $type,
+        '$data' => $data,
+        '$map' => $map,
+        '$defaults' => $defaults,
+        '$options' => $options,
+        '$fields' => $fields,
+        'preview' => $preview,
+    ));
+  }
+  
+}
+
+/**
+ * this function is called for each of the node import actions. &$values
+ * contains the values to be imported into this node.
+ *
+ * we can then node_load the existing node to get its current values.
+ *
+ * we have to merge these arrays somehow.
+ *
+ * $values has new values and nulled values
+ *
+ * node_load()ed $current_node has all current data.
+ *
+ * if we had a list of the fields being imported (list_of_fields)
+ *  - and based on a (skip | clear) option to either skip the value if new
+ *    value is empty - or - clear it from the current node
+ *    - skip: the transfer would remove empty fields in list_of_fields
+ *    - clear: the transfer would preserve the fields in the list_of_fields
+ *
+ */
 function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
+  // return if this is a new node
+  if ($values['nid'] == '') return;
 
-  /**
-   * this function is called for each of the node import actions. &$values
-   * contains the values to be imported into this node.
-   *
-   * we can then node_load the existing node to get its current values.
-   *
-   * we have to merge these arrays somehow.
-   *
-   * $values has new values and nulled values
-   *
-   * node_load()ed $nodey has all current data.
-   *
-   * if we had a list of the fields being imported (list_of_fields)
-   *  - and based on a (skip | clear) option to either skip the value if new
-   *    value is empty - or - clear it from the current node
-   *    - skip: the transfer would remove empty fields in list_of_fields
-   *    - clear: the transfer would preserve the fields in the list_of_fields
-   *
-   */
-
-  dpm('we may have a map');
+  $current_node = (array) node_load($values['nid']);
   $map = variable_get('node_import_update_map_save', array());
-  dpm(array('orig map' => $map));
+  // dpm($values); return;
+  dpm(array('values and current_node, together at last (and map!)',
+      'current_node' => $current_node,
+      'values' => $values,
+      'map' => $map,
+      'other params',
+      'defaults' => $defaults,
+      'options' => $options,
+      'fields' => $fields,
+      'preview' => $preview,
+      ));
+  
+  foreach ($map as $map_key => $map_data) {
+
+    // get rid of fields that aren't being mapped
+    if (!is_array($map_data) && $map_data == '') {
+      unset($map[$map_key]);
+    }
+    elseif (is_array($map_data)) {
+      // @TODO if array data is not mapped, kill it too
+      //if (strstr($map_key, 'taxonomy:') !== FALSE) {
+        // taxonomy field
+        if (array_shift($map[$map_key]) == '') {
+          unset($map[$map_key]);
+        }
+      //}
+    }
+  }
+  // unset our key too
+  //unset($map[variable_get('node_import_update_unique_key', '')]);
+
+  dpm(array('new map!', 'map' => $map));
+
+  // remove all un-mapped $value data - this is to avoid overwriting the current
+  // node with default node_import values
+  $map_keys = array_keys($map);
+  foreach ($values as $vk => $vv) {
+    
+    if (strstr($vk, 'taxonomy:') !== FALSE) {
+      // we have a taxonomy field - check if it is mapped. if not, unset
+      foreach ($vv as $taxk => $taxv) {
+        if (empty($taxv)) {
+          unset($values[$vk][$taxk]);
+        }
+      }
+    }
+    
+    if (!array_key_exists($vk, $current_node) && !in_array($vk, $map_keys) && !in_array('cck:'. $vk .':value', $map_keys)) {// && $vk != 'taxonomy') {
+      unset($values[$vk]);
+      //echo '<h1> unsetting: '. $vk .'</h1>';
+      //dpm(array('unsetting' => $values[$vk]));
+    }
+  }
+
+  foreach ($values as $v_key => $v_value) {
+    //if (array_key_exists($cn_key, $values)) {
+      $current_node[$v_key] = $v_value;
+    //}
+  }
+
+  $values = $current_node;//array_merge($current_node, $values);
+  dpm(array('VALUES TO IMPORT' => $values));
+return;
+
+
+
+  //dpm(array('orig map' => $map, $values, $type, $defaults, $options, $fields));
+  
+  
+
+  
+
+  echo '<h1>hai</h1>';echo '<h1>hai</h1>';
+
   foreach ($map as $map_key => $map_data) {
     /*
      * 1. normal field
@@ -59,44 +169,101 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
      * 3. taxonomy
      *   a. array
      *
+     * values = values to be imported
+     * current_node  = the existing node data
+     *
+     * we need= values to have all the correct data
+     *
+     * we get there by:
+     *   - removing the data values in $current_node that will be overwritten by import
+     *   - adding $current_node data to $values that we want to preserve
+     *   - array_merge remaining $current_node values into $values
+     *
+     *   so - flag is CLEAR FIELDS or SKIP FIELDS if importing value is empty
+     *
      * determine what the real key is called and add to map list if not empty
      *
      */
+    $mpdta = is_array($values[$map_key]) ? 'is an array' : $values[$map_key];
+echo '<h1 style="color:blue">-- MUP KOEY: '. $map_key .' -- map data: '. $mpdta .'</h1>';
+    // if we have a cck field it's probably an array
+    // @TODO do we really need to bug cck:field ?
     if (strstr($map_key, 'cck:field_')) {
+
+      echo '<h1 style="color:purple">we have a cck field</h1>';
       if (is_array($map_data)) {
+        echo '<h1>-- map data is an array</h1>';
+        // if it isn't mapped, remove it from our map
         if (empty($map_data)) {
+          echo '<h1>-- map data is empty</h1>';
           unset($map[$map_key]);
         }
         else {
+          echo '<h1>-- map data is NOT empty</h1>';
           // cck field not empty, move the name over to $map
           $cck_fieldname = explode(':', $map_key);
           $cck_field = $cck_fieldname[1];
-          $map[$cck_field] = $map[$map_key];
+          //$map[$map_key] = $map[$map_key];
+          
+          //$values[$cck_field] = $current_node[$map_key];
+
+          //$map[$cck_field][0] = $map[$map_key];
+
+          $values[$cck_field] = array($map[$map_key]);
+          $current_node[$cck_field]  = array($map[$map_key]);
+
+          $values[$cck_field][0]['value'] = $values[$cck_field];
+          //$current_node[$cck_field]  = array($map[$map_key]);
+          echo '<h1>values['. $cck_field .'][0][value] = '. $values[$cck_field] .'</h1>';
+          //
+          unset($current_node[$cck_field]);
         }
       }
       elseif ($map[$map_key] == '') {
+        echo '<h1>-- map[map key] is empty</h1>';
         unset($map[$map_key]);
+      }
+      else {
+        echo '<h1 style="color:pink">we dont have anything for this case yet</h1>';
+        $values[$map_key] = $current_node[$map_key];
+        unset($current_node[$map_key]);
       }
     }
     else {
+      // if map_data is blank then we should kill this field otherwise our data
+      // will get overwritten
+
       if ($map_data == '') {
+        //
+        echo '<h1>-- map data is empty and not a cck:field ****'. $map_key .'****</h1>';
         unset($map[$map_key]);
+        unset($current_node[$key]);
+      }
+      if (is_array($map_data)) {
+        echo '<h1 style="color:#f00">things</h1>';
+        $values[$map_key][0]['value'] = $current_node[$map_key];
+        unset($current_node[$map_key]);
+      }
+      else {
+        echo '<h1>-- map data is NOT empty: '. $current_node[$map_key] .'</h1>';
+        $values[$map_key] = $current_node[$map_key];
+        unset($current_node[$map_key]);
       }
     }
+    
   }
-  dpm(array('modded map' => $map));
-  //variable_set('node_import_update_map_save', $map);
+  //dpm(array('modded map' => $map));
 
-  $nodey = (array) node_load($values['nid']);
+  // merge values of the current node that we want to preserve
+  $values = array_merge($values, $current_node);
 
-  foreach ($map as $key => $val) {
-    unset($nodey[$key]);
-  }
 
-  
-  $values = array_merge($values, (array)$nodey);
-  $values['nodey'] = $nodey;
+
+  dpm(array('values after array_merge current_node', 'values' => $values, 'current_node' => $current_node));//, 'map' => $map));
+  $values['current_node'] = $current_node;
+/*
   dpm(array(
+
     'node_import_update_node_import_values_alter',
     'values' => array(
       'values' => $values,
@@ -107,6 +274,8 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
       'preview' => $preview
     ),
   ));
+*/
+  
 }
 
 /**
@@ -127,13 +296,19 @@ function node_import_update_menu() {
 }
 
 /**
- * validation function for Update data using Node Import Update field
+ * Validation function for Update data using Node Import Update field
+ *
+ * Set update flag. may have to use a more dynamic / per instance approach
+ * since this will affect concurrent node imports.
+ *
+ * This is being set like this because it is picked up in our implementation of
+ * hook_node_import_fields($type) to add radio buttons on the map page (step 4).
+ *
  */
 function node_import_update_check_validate($element, &$form_state) {
-  // set update flag. may have to use a more dynamic / per instance approach
-  // since this will affect concurrent node imports
+  // set the do upate variable based on our checkbox #value
   variable_set('node_import_update_do_update', $element['#value'] == 1);
-  dpm(array('validate firing', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
+  //dpm(array('validate firing', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
 }
 
 /**
@@ -154,7 +329,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
           '#type' => 'checkbox',
           '#title' => t('Update data using Node Import Update'),
           '#description' => t('Check this option if you want to update the data based on a Field Key'),
-          '#default_value' => TRUE,
+          '#default_value' => $values['node_import_update_check'],
           '#weight' => 0,
           '#element_validate' => array('node_import_update_check_validate'),
         );
@@ -162,6 +337,8 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
       // just in case we want to add Misery support or something...
       case 'map':
+        // add validation handler for
+        $form['#validate'][] = 'node_import_update_unique_value_check';
         break;
 
       // get the content type immediately after it is set
@@ -180,10 +357,19 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
         // set update vars
         variable_set('node_import_update_content_type', $content_type);
-        variable_set('node_import_update_is_product', $is_product);
         variable_set('node_import_update_unique_key', $form_state['clicked_button']['#post']['map']['node_import_update_unique_key']);
         variable_set('node_import_update_is_cck', $node_import_update_is_cck);
         
+        break;
+
+      case 'preview':
+        // add a notice to the preview page
+        $niu_options = array(
+          '#type' => 'item',
+          '#title' => 'Node import update options',
+          '#value' => '<p><strong>WARNING:</strong> You are about to update a bunch of content and <strong>possibly destroy stuff</strong>. Just an FYI.</p>',
+        );
+        array_unshift($form, $niu_options);
         break;
     }
 
@@ -198,6 +384,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
     $import_node_type = variable_get('node_import_update_content_type', '');
     // Settting: update date/time value?
     $import_update_datetime  = variable_get('node_import_update_update_date', TRUE);
+
 
 
     // Alter node edit form
@@ -220,7 +407,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         $query = 'SELECT c.nid, c.vid FROM {content_type_%s} c WHERE c.%s = "%s"';
       }
       // is this keying off the Ubercart model field?
-      elseif ($node_import_update_unique_key == 'model') {
+      elseif ($import_unique_id_name == 'model') {
         $import_unique_id_name = 'model';
         // get "unique" id
         $unique_id_value = $form['#post']['model']; // ['cck:field_import_id:value'][0];
@@ -235,7 +422,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         // build query
         $query = 'SELECT n.nid, n.vid FROM {node} n WHERE n.type = "%s" AND n.%s = "%s"';
       }
-
+dpm(array('$import_unique_id_name' => $import_unique_id_name, 'query' => $query, '$import_unique_id_is_uc' => $import_unique_id_is_uc));
       // Check if we have a unique id
       if ($unique_id_value) {
         // execute query
@@ -259,9 +446,6 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
           $form['vid']['#value']= intval($row['vid']);
           $node = node_load($row['nid'], $row['vid']);
           $form['#node'] = $node;
-
-variable_set('niu insert node', $form);
-
 
           // Set time to last updated
           if ($import_update_datetime) {
@@ -345,7 +529,9 @@ function node_import_update_node_import_field_table(&$form) {
   /**
    * loop over the form elements
    */
+   //$form['node_import_update_unique_key']['#element_validate'] = array('node_import_update_unique_key_validate');
   dpm(array('this is the form about to be rendered', 'form' => $form, 'form children' => element_children($form)));
+
   foreach (element_children($form) as $child) {
     if (!isset($form[$child]['#type']) || $form[$child]['#type'] != 'value') {
       $title = check_plain($form[$child]['#title']);
@@ -363,17 +549,19 @@ function node_import_update_node_import_field_table(&$form) {
        */
 
       if ($map_unique_key && unique_qualifier($child)) {
-        $return_value = check_plain($child);
-
+        // add radio buttons for unique keys
         $form['node_import_update_unique_key'][$child] = array(
           '#name' => 'map[node_import_update_unique_key]',
           '#type' => 'radio',
-          '#default_value' => $niu_unique_default_value,
-          '#return_value' => $return_value,
+          '#return_value' => $child,
           '#attributes' => array('align' => 'center'),
         );
+        //if ($niu_unique_default_value == $return_value) {
+          //$form['node_import_update_unique_key'][$child]['#default_value'] = $niu_unique_default_value;
+        //}
+        dpm(array($niu_unique_default_value, $child, $child));
 
-        if ($return_value == $niu_unique_default_value) {
+        if ($child == $niu_unique_default_value) {
           $form['node_import_update_unique_key'][$child]['#attributes']['checked'] = 'checked';
         }
 
@@ -412,8 +600,34 @@ function node_import_update_node_import_field_table(&$form) {
   return theme('table', $header, $rows) . drupal_render($form);
 }
 
+function node_import_update_unique_value_check($form, &$form_state) {
+  
+  // @TODO decide whether to keep this in storage
+  $form_state['storage']['node_import_update_unique_key'] = $form_state['clicked_button']['#post']['map']['node_import_update_unique_key'];
+  variable_set('node_import_update_unique_key', $form_state['storage']['node_import_update_unique_key']);
+
+  // dpm (array('node_import_update_unique_value_check', 'form' => $form, 'form_state' => $form_state, 'a'));
+}
+
 /**
- * determines if the item is a unique field that can be used as a "primary key"
+ * Validation function for radio button on the map page
+ *
+ * Set update flag. may have to use a more dynamic / per instance approach
+ * since this will affect concurrent node imports.
+ *
+ * This is being set like this because it is picked up in our implementation of
+ * hook_node_import_fields($type) to add radio buttons on the map page (step 4).
+ *
+ */
+function node_import_update_unique_key_validate($element, &$form_state) {
+  // set the do upate variable based on our checkbox #value
+  //variable_set('node_import_update_do_update', $element['#value'] == 1);
+  dpm('KEY VALIDATE FUNCTION');
+  dpm(array('validate firing KEY VALIDATE', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
+}
+
+/**
+ * Determines if the item is a unique field that can be used as a "primary key"
  * of sorts when updating nodes.
  */
 function unique_qualifier($item) {
@@ -422,9 +636,6 @@ function unique_qualifier($item) {
   return preg_match($pattern, $item) || in_array($item, $unique);
 }
 
-function get_unique_qualifiers() {
-  return array('title', 'model', 'nid');
-}
 // module below ensures existing nodes are updated, to avoid duplication
 // kept for the time-being for leagacy sake. May borrow image field handling code, as this remains untested in new code above.
 /* function node_import_update_form_product_node_form_alter($data)
