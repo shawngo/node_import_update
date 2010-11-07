@@ -12,7 +12,6 @@ define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
  * drupal_alter for node_import_options
  *
  * preserve the $map values for later
- * 
  */
 function node_import_update_node_import_options_alter(&$form, $type, $options, $fields, $map) {
   variable_set('node_import_update_map_save', $map);
@@ -59,23 +58,7 @@ function node_import_update_node_import_values($type, $defaults, $options, $fiel
 }
 
 /**
- * this function is called for each of the node import actions. &$values
- * contains the values to be imported into this node.
- *
- * we can then node_load the existing node to get its current values.
- *
- * we have to merge these arrays somehow.
- *
- * $values has new values and nulled values
- *
- * node_load()ed $current_node has all current data.
- *
- * if we had a list of the fields being imported (list_of_fields)
- *  - and based on a (skip | clear) option to either skip the value if new
- *    value is empty - or - clear it from the current node
- *    - skip: the transfer would remove empty fields in list_of_fields
- *    - clear: the transfer would preserve the fields in the list_of_fields
- *
+ * Alter data for each row in the import
  */
 function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
   // return if this is a new node
@@ -97,18 +80,20 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   // */
   $mapped_taxonomies = array();
   $field_keys = array_keys($fields);
+
+  // get rid of fields that aren't being mapped
   foreach ($map as $map_key => $map_data) {
 
-    // get rid of fields that aren't being mapped
     // if the map field is empty
     if (!is_array($map_data) && $map_data == '') {
       unset($map[$map_key]);
     }
     elseif (is_array($map_data)) {
       // @TODO if array data is not mapped, kill it too
-      //if (strstr($map_key, 'taxonomy:') !== FALSE) {
+      // if (strstr($map_key, 'taxonomy:') !== FALSE) {
         // taxonomy field
         if (array_shift($map[$map_key]) == '') {
+          // @TODO this is questionable
           unset($map[$map_key]);
         }
         else {
@@ -117,7 +102,7 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
             $mapped_taxonomies[] = str_replace('taxonomy:', '', $map_key);
           }
         }
-      //}
+      // }
     }
   }
 
@@ -136,7 +121,7 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   }
 
   foreach ($values as $vk => $vv) {
-    
+
     if ($vk == 'taxonomy') {
       // we have a taxonomy field - check if it is mapped. if not, unset
       // foreach tags as vid => terms
@@ -175,7 +160,6 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
        *
        * AND the key cck:{key}:value doesn't exist in map - if the cck field isn't mapped
        * AND it isn't a file list field
-       *
        */
       $key_exists_in_node  = array_key_exists($vk, $current_node);
       $key_exists_in_map   = in_array($vk, $map_keys);
@@ -185,20 +169,17 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
 
       // keep it if it is some sort of extraneous cck field (eg. :list) TODO add to this list?
       if (!($is_mapped_cck_field || $is_a_cck_list_field)) {
-        if (false) echo '<h3>fooing '. $vk .'</h1>';
         if ($key_exists_in_node && !$key_exists_in_map) {
           unset($values[$vk]);
         }
       }
-      else if (strstr($vk, ':data')) {
-        if (false) echo '<h3>fooingx '. $vk .'</h1>';
-        // TODO check for multiple fields
+      elseif (strstr($vk, ':data')) {
+        // @TODO check for multiple fields
         $cck_name_data = explode(':', $vk);
         $values[$vk] = $current_node[$cck_name_data[1]][0]['data'];
-        
       }
-      else if ($is_mapped_cck_field) {
-        // TODO add support for image / file info (alt & title)
+      elseif ($is_mapped_cck_field) {
+        // @TODO add support for image / file info (alt & title)
         // need to copy keys from $values to $current_node to import fields
         $current_node[$vk] = $values[$vk];
       }
@@ -215,9 +196,7 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   $current_node['dim_width']  = $current_node['width'];
   $current_node['dim_height'] = $current_node['height'];
 
-  $values = $current_node;//array_merge($current_node, $values);
-
-  //dpm(array('VALUES TO IMPORT' => $values));
+  $values = $current_node;
 
 }
 
@@ -246,7 +225,6 @@ function node_import_update_menu() {
  *
  * This is being set like this because it is picked up in our implementation of
  * hook_node_import_fields($type) to add radio buttons on the map page (step 4).
- *
  */
 function node_import_update_check_validate($element, &$form_state) {
   // set the do upate variable based on our checkbox #value
@@ -301,12 +279,12 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         variable_set('node_import_update_content_type', $content_type);
         variable_set('node_import_update_unique_key', $form_state['clicked_button']['#post']['map']['node_import_update_unique_key']);
         variable_set('node_import_update_is_cck', $node_import_update_is_cck);
-        
+
         break;
 
       case 'preview':
         break;
-      
+
       case 'start':
         // add a notice to the preview page
         $niu_options = array(
@@ -410,10 +388,13 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 /**
  * Implementation of hook_node_import_fields() to add the nid field.
  *
- * @param $type string the content type being updated
- * @return array fields array of new fields to add to the form
+ * @param $type
+ *   the content type being updated
+ *
+ * @return
+ *   fields array of new fields to add to the form
  */
-function node_import_update_node_import_fields ($type) {
+function node_import_update_node_import_fields($type) {
 
   if (!variable_get('node_import_update_do_update', FALSE)) {
     return array();
@@ -422,7 +403,7 @@ function node_import_update_node_import_fields ($type) {
   // when executing node import
   $fields = array(
     'nid' => array(
-      'title' => 'Node ID',
+      'title' => 'Node id',
       'module' => 'node_import_update',
       'weight' => '-1',
       'is_mappable' => TRUE,
@@ -448,7 +429,6 @@ function node_import_update_theme_registry_alter(&$theme_registry) {
  *
  * We are overriding this to add the Update key column which is used to select
  * which update key to use as a unique value when searching for nodes to update.
- * 
  */
 function node_import_update_node_import_field_table(&$form) {
   $header = $form['#node_import-columns'];
@@ -551,16 +531,14 @@ function node_import_update_unique_value_check($form, &$form_state) {
  *
  * This is being set like this because it is picked up in our implementation of
  * hook_node_import_fields($type) to add radio buttons on the map page (step 4).
- *
  */
 function node_import_update_unique_key_validate($element, &$form_state) {
   // set the do upate variable based on our checkbox #value
-  // TODO can probably remove this
+  // @TODO can probably remove this
 }
 
 /**
- * Determines if the item is a unique field that can be used as a "primary key"
- * of sorts when updating nodes.
+ * Check if the item is a unique field that can be used as a unique identifier
  */
 function unique_qualifier($item) {
   $unique = array('title', 'model', 'nid');
