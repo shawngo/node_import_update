@@ -16,7 +16,7 @@ function node_import_update_admin_settings_form(&$form_state) {
     '#type'        => 'fieldset',
     '#collapsible' => TRUE,
     '#collapsed'   => FALSE,
-    '#description' => 'change shit up.',
+    '#description' => 'Configuration settings',
   );
 
   $form['niu_settings']['node_import_update_update_date'] = array(

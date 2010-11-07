@@ -19,18 +19,12 @@ function node_import_update_node_import_options_alter(&$form, $type, $options, $
 }
 
 /*
- * Implementation of hook_node_import_values
+ * Implementation of hook_node_import_values().
  *
  * Create an array of values to submit to the form.
  *
  * @param $type
  *   String. The node_import type.
- *
- * @param $data
- *   Array of data from the file as ($col_index => $value).
- *
- * @param $map
- *   Array of how the data maps to fields.
  *
  * @param $defaults
  *   Array of default values.
@@ -106,7 +100,6 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   foreach ($map as $map_key => $map_data) {
 
     // get rid of fields that aren't being mapped
-
     // if the map field is empty
     if (!is_array($map_data) && $map_data == '') {
       unset($map[$map_key]);
@@ -127,20 +120,16 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
       //}
     }
   }
-  // unset our key too
-  //unset($map[variable_get('node_import_update_unique_key', '')]);
 
-  dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies, 'current node' => $current_node, 'values' => $values));
+  // dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies, 'current node' => $current_node, 'values' => $values));
 
   // remove all un-mapped $value data - this is to avoid overwriting the current
   // node with default node_import values
   $map_keys = array_keys($map);
   unset($values['created']);
 
-
   foreach ($map as $mk => $mv) {
     if (strstr($mk, 'nodewords_')) {
-      //echo '<h1>::'. $mv .':: $current_node[nodewords]['. str_replace('nodewords_', '', $mk) .'][value] = '. $values[$mv] .'</h1>';
       $current_node['nodewords'][str_replace('nodewords_', '', $mk)]['value'] = $values[$mk];
       unset($values[$mv]);
     }
@@ -150,7 +139,6 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
     
     if ($vk == 'taxonomy') {
       // we have a taxonomy field - check if it is mapped. if not, unset
-
       // foreach tags as vid => terms
       foreach ($vv['tags'] as $vocabid => $delimitted_terms) {
 
@@ -159,22 +147,16 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
         // preserve stuffs
           $preserved_vocabids = '';
         if (!in_array($vocabid, $mapped_taxonomies)) {
-          //$preserved_vocabids[$vocabid] = $content['taxonomy']['tags'][$vocabid];
 
-          
           foreach ($current_node['taxonomy'] as $tid => $tobj) {
             if ($tobj->vid == $vocabid) {
-
               $preserved_vocabids .= $tobj->name .',';
-
             }
           }
-
           $current_node['taxonomy']['tags'][$vocabid] = rtrim($preserved_vocabids, ',');
         }
         else {
           $current_node['taxonomy']['tags'][$vocabid] = $delimitted_terms;
-
         }
       }
       /*
@@ -200,15 +182,8 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
 
       $is_mapped_cck_field = in_array('cck:'. $vk .':fid', $map_keys);
       $is_a_cck_list_field = strstr($vk, ':list') || strstr($vk, ':data');
-  /*
-      $map = map keys
 
-      $values = has some creative shit, mang
-
-      $current_node = the current node
-  */
       // keep it if it is some sort of extraneous cck field (eg. :list) TODO add to this list?
-
       if (!($is_mapped_cck_field || $is_a_cck_list_field)) {
         if (false) echo '<h3>fooing '. $vk .'</h1>';
         if ($key_exists_in_node && !$key_exists_in_map) {
@@ -219,7 +194,6 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
         if (false) echo '<h3>fooingx '. $vk .'</h1>';
         // TODO check for multiple fields
         $cck_name_data = explode(':', $vk);
-
         $values[$vk] = $current_node[$cck_name_data[1]][0]['data'];
         
       }
@@ -227,26 +201,14 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
         // TODO add support for image / file info (alt & title)
         // need to copy keys from $values to $current_node to import fields
         $current_node[$vk] = $values[$vk];
-        if (false) echo '<h1>resetting cck field: '. $vk .'</h1>';
       }
     }
 
-/*
-    if ((!array_key_exists($vk, $current_node) && !in_array($vk, $map_keys)) && !in_array('cck:'. $vk .':value', $map_keys) && !strstr($vk, ':list')) {// && $vk != 'taxonomy') {
-      unset($values[$vk]);
-      
-      //dpm(array('unsetting' => $values[$vk]));
-    }
-*/
   }
-//dpm(array('values before foreach' => $values, $current_node));
+
   foreach ($values as $v_key => $v_value) {
-    //if (array_key_exists($cn_key, $values)) {
-      $current_node[$v_key] = $v_value;
-    //}
+    $current_node[$v_key] = $v_value;
   }
-
-
 
   // these jerks wouldn't move over...
   $current_node['dim_length'] = $current_node['length'];
@@ -254,122 +216,9 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   $current_node['dim_height'] = $current_node['height'];
 
   $values = $current_node;//array_merge($current_node, $values);
-  dpm(array('VALUES TO IMPORT' => $values));
-return;
 
+  //dpm(array('VALUES TO IMPORT' => $values));
 
-
-  //dpm(array('orig map' => $map, $values, $type, $defaults, $options, $fields));
-  
-  
-
-  
-
-  
-
-  foreach ($map as $map_key => $map_data) {
-    /*
-     * 1. normal field
-     * 2. cck field
-     *   a. string
-     *   b. array
-     * 3. taxonomy
-     *   a. array
-     *
-     * values = values to be imported
-     * current_node  = the existing node data
-     *
-     * we need= values to have all the correct data
-     *
-     * we get there by:
-     *   - removing the data values in $current_node that will be overwritten by import
-     *   - adding $current_node data to $values that we want to preserve
-     *   - array_merge remaining $current_node values into $values
-     *
-     *   so - flag is CLEAR FIELDS or SKIP FIELDS if importing value is empty
-     *
-     * determine what the real key is called and add to map list if not empty
-     *
-     */
-    $mpdta = is_array($values[$map_key]) ? 'is an array' : $values[$map_key];
-
-    // if we have a cck field it's probably an array
-    // @TODO do we really need to bug cck:field ?
-    if (strstr($map_key, 'cck:field_')) {
-      if (is_array($map_data)) {
-        // if it isn't mapped, remove it from our map
-        if (empty($map_data)) {
-          unset($map[$map_key]);
-        }
-        else {
-          // cck field not empty, move the name over to $map
-          $cck_fieldname = explode(':', $map_key);
-          $cck_field = $cck_fieldname[1];
-
-          $values[$cck_field] = array($map[$map_key]);
-          $current_node[$cck_field]  = array($map[$map_key]);
-
-          $values[$cck_field][0]['value'] = $values[$cck_field];
-          //$current_node[$cck_field]  = array($map[$map_key]);
-          unset($current_node[$cck_field]);
-        }
-      }
-      elseif ($map[$map_key] == '') {
-        unset($map[$map_key]);
-      }
-      else {
-        echo '<h1 style="color:pink">we dont have anything for this case yet</h1>';
-        $values[$map_key] = $current_node[$map_key];
-        unset($current_node[$map_key]);
-      }
-    }
-    else {
-      // if map_data is blank then we should kill this field otherwise our data
-      // will get overwritten
-
-      if ($map_data == '') {
-        //
-        echo '<h1>-- map data is empty and not a cck:field ****'. $map_key .'****</h1>';
-        unset($map[$map_key]);
-        unset($current_node[$key]);
-      }
-      if (is_array($map_data)) {
-        echo '<h1 style="color:#f00">things</h1>';
-        $values[$map_key][0]['value'] = $current_node[$map_key];
-        unset($current_node[$map_key]);
-      }
-      else {
-        echo '<h1>-- map data is NOT empty: '. $current_node[$map_key] .'</h1>';
-        $values[$map_key] = $current_node[$map_key];
-        unset($current_node[$map_key]);
-      }
-    }
-    
-  }
-  //dpm(array('modded map' => $map));
-
-  // merge values of the current node that we want to preserve
-  $values = array_merge($values, $current_node);
-
-
-
-  dpm(array('values after array_merge current_node', 'values' => $values, 'current_node' => $current_node));//, 'map' => $map));
-  $values['current_node'] = $current_node;
-/*
-  dpm(array(
-
-    'node_import_update_node_import_values_alter',
-    'values' => array(
-      'values' => $values,
-      'type' => $type,
-      'defaults' => $defaults,
-      'options' => $options,
-      'fields' => $fields,
-      'preview' => $preview
-    ),
-  ));
-*/
-  
 }
 
 /**
@@ -402,7 +251,6 @@ function node_import_update_menu() {
 function node_import_update_check_validate($element, &$form_state) {
   // set the do upate variable based on our checkbox #value
   variable_set('node_import_update_do_update', $element['#value'] == 1);
-  //dpm(array('validate firing', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
 }
 
 /**
@@ -457,7 +305,6 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         break;
 
       case 'preview':
-        //dpm(array('PREEVEUUUUE', $form, $form_state, $form_id));
         break;
       
       case 'start':
@@ -482,8 +329,6 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
     $import_node_type = variable_get('node_import_update_content_type', '');
     // Settting: update date/time value?
     $import_update_datetime  = variable_get('node_import_update_update_date', TRUE);
-
-
 
     // Alter node edit form
     if ($form_id == $import_node_type .'_node_form') {
@@ -520,7 +365,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         // build query
         $query = 'SELECT n.nid, n.vid FROM {node} n WHERE n.type = "%s" AND n.%s = "%s"';
       }
-dpm(array('$import_unique_id_name' => $import_unique_id_name, 'query' => $query, '$import_unique_id_is_uc' => $import_unique_id_is_uc));
+
       // Check if we have a unique id
       if ($unique_id_value) {
         // execute query
@@ -627,8 +472,6 @@ function node_import_update_node_import_field_table(&$form) {
   /**
    * loop over the form elements
    */
-   //$form['node_import_update_unique_key']['#element_validate'] = array('node_import_update_unique_key_validate');
-  dpm(array('this is the form about to be rendered', 'form' => $form, 'form children' => element_children($form)));
 
   foreach (element_children($form) as $child) {
     if (!isset($form[$child]['#type']) || $form[$child]['#type'] != 'value') {
@@ -654,10 +497,6 @@ function node_import_update_node_import_field_table(&$form) {
           '#return_value' => $child,
           '#attributes' => array('align' => 'center'),
         );
-        //if ($niu_unique_default_value == $return_value) {
-          //$form['node_import_update_unique_key'][$child]['#default_value'] = $niu_unique_default_value;
-        //}
-        dpm(array($niu_unique_default_value, $child, $child));
 
         if ($child == $niu_unique_default_value) {
           $form['node_import_update_unique_key'][$child]['#attributes']['checked'] = 'checked';
@@ -699,12 +538,9 @@ function node_import_update_node_import_field_table(&$form) {
 }
 
 function node_import_update_unique_value_check($form, &$form_state) {
-  
   // @TODO decide whether to keep this in storage
   $form_state['storage']['node_import_update_unique_key'] = $form_state['clicked_button']['#post']['map']['node_import_update_unique_key'];
   variable_set('node_import_update_unique_key', $form_state['storage']['node_import_update_unique_key']);
-
-  // dpm (array('node_import_update_unique_value_check', 'form' => $form, 'form_state' => $form_state, 'a'));
 }
 
 /**
@@ -719,9 +555,7 @@ function node_import_update_unique_value_check($form, &$form_state) {
  */
 function node_import_update_unique_key_validate($element, &$form_state) {
   // set the do upate variable based on our checkbox #value
-  //variable_set('node_import_update_do_update', $element['#value'] == 1);
-  dpm('KEY VALIDATE FUNCTION');
-  dpm(array('validate firing KEY VALIDATE', 'element' => $element, 'new variable is set to' => variable_get('node_import_update_do_update', 'NOT SET')));
+  // TODO can probably remove this
 }
 
 /**
@@ -752,25 +586,3 @@ if (module_exists('nodewords_basic')) {
     return $fields;
   }
 }
-
-
-
-// module below ensures existing nodes are updated, to avoid duplication
-// kept for the time-being for leagacy sake. May borrow image field handling code, as this remains untested in new code above.
-/* function node_import_update_form_product_node_form_alter($data)
-{
-  $sku = $data['#post']['model'];
-  if (is_numeric($sku)){
-    $sku = intval($sku) ;
-    $row = db_fetch_array(db_query("SELECT uc_products.nid, uc_products.vid, content_field_image_cache.field_image_cache_fid, content_field_image_cache.field_image_cache_list, content_field_image_cache.field_image_cache_data FROM uc_products, content_field_image_cache WHERE uc_products.model = %d AND uc_products.nid = content_field_image_cache.nid LIMIT 1", $sku));
-    if (!empty($row)){
-      $data['nid']['#value']= intval($row['nid']);
-      $data['vid']['#value']= intval($row['vid']);
-      $data['#post']['field_image_cache'] = Array(Array('data' => $row['field_image_cache_data'], 'list' => $row['field_image_cache_list'], 'fid' => $row['field_image_cache_fid']));
-      $data['#post']['cck:field_image_cache:data'] = $row['field_image_cache_data'];
-      $data['#post']['cck:field_image_cache:fid'] = $row['field_image_cache_fid'];
-      $data['#post']['cck:field_image_cache:list'] = $row['field_image_cache_list'];
-      $data['changed']['#value']= time ();
-    }
-  }
-} */
