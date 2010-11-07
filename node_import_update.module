@@ -85,7 +85,7 @@ function node_import_update_node_import_values($type, $defaults, $options, $fiel
  */
 function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
   // return if this is a new node
-  if ($values['nid'] == '' || variable_get('node_import_update_do_update', FALSE)) return;
+  if ($values['nid'] == '' || !variable_get('node_import_update_do_update', FALSE)) return;
 
   $current_node = (array) node_load($values['nid']);
   $map = variable_get('node_import_update_map_save', array());
@@ -100,7 +100,7 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
       'fields' => $fields,
       'preview' => $preview,
       ));
-  */
+  // */
   $mapped_taxonomies = array();
   $field_keys = array_keys($fields);
   foreach ($map as $map_key => $map_data) {
@@ -130,12 +130,21 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   // unset our key too
   //unset($map[variable_get('node_import_update_unique_key', '')]);
 
-  // dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies));
+  dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies, 'current node' => $current_node, 'values' => $values));
 
   // remove all un-mapped $value data - this is to avoid overwriting the current
   // node with default node_import values
   $map_keys = array_keys($map);
   unset($values['created']);
+
+
+  foreach ($map as $mk => $mv) {
+    if (strstr($mk, 'nodewords_')) {
+      //echo '<h1>::'. $mv .':: $current_node[nodewords]['. str_replace('nodewords_', '', $mk) .'][value] = '. $values[$mv] .'</h1>';
+      $current_node['nodewords'][str_replace('nodewords_', '', $mk)]['value'] = $values[$mk];
+      unset($values[$mv]);
+    }
+  }
 
   foreach ($values as $vk => $vv) {
     
@@ -237,6 +246,9 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
     //}
   }
 
+
+
+  // these jerks wouldn't move over...
   $current_node['dim_length'] = $current_node['length'];
   $current_node['dim_width']  = $current_node['width'];
   $current_node['dim_height'] = $current_node['height'];
@@ -721,6 +733,27 @@ function unique_qualifier($item) {
   $pattern = "/^cck:[a-zA-Z_]+:value$/"; // Example: cck:field_product_text_field:value
   return preg_match($pattern, $item) || in_array($item, $unique);
 }
+
+
+if (module_exists('nodewords_basic')) {
+  function nodewords_node_import_fields($type) {
+    $fields = array();
+    $weight = 1;
+    if (variable_get('nodewords_edit_metatags_' . $type, TRUE)) {
+      $xfields = nodewords_basic_nodewords_tags_info();
+      foreach ($xfields as $key => $field_data) {
+        $fields['nodewords_'. $key] = array(
+          'title' => t($field_data['widget:label']),
+          'group' => t('Meta data'),
+          'weight' => ++$weight,
+        );
+      }
+    }
+    return $fields;
+  }
+}
+
+
 
 // module below ensures existing nodes are updated, to avoid duplication
 // kept for the time-being for leagacy sake. May borrow image field handling code, as this remains untested in new code above.
