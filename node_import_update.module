@@ -8,11 +8,13 @@
 
 define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
 
-// node_import_update_node_import_values_alter
-
+/*
+ * drupal_alter for node_import_options
+ *
+ * preserve the $map values for later
+ * 
+ */
 function node_import_update_node_import_options_alter(&$form, $type, $options, $fields, $map) {
-  dpm('is this called now node_import_update_node_import_options_alter');
-  dpm(array($map,$form));
   variable_set('node_import_update_map_save', $map);
 }
 
@@ -47,6 +49,7 @@ function node_import_update_node_import_options_alter(&$form, $type, $options, $
  *   Array of values to submit to a form. See hook_node_import_values().
  */
 function node_import_update_node_import_values($type, $defaults, $options, $fields, $preview) {
+  /*
   if ($preview) {
     dpm(array('from our new best friend node_import_update_node_import_values',
         '$type' => $type,
@@ -58,7 +61,7 @@ function node_import_update_node_import_values($type, $defaults, $options, $fiel
         'preview' => $preview,
     ));
   }
-  
+  */
 }
 
 /**
@@ -82,11 +85,11 @@ function node_import_update_node_import_values($type, $defaults, $options, $fiel
  */
 function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
   // return if this is a new node
-  if ($values['nid'] == '') return;
+  if ($values['nid'] == '' || variable_get('node_import_update_do_update', FALSE)) return;
 
   $current_node = (array) node_load($values['nid']);
   $map = variable_get('node_import_update_map_save', array());
-  // dpm($values); return;
+  /*
   dpm(array('values and current_node, together at last (and map!)',
       'current_node' => $current_node,
       'values' => $values,
@@ -97,10 +100,14 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
       'fields' => $fields,
       'preview' => $preview,
       ));
-  
+  */
+  $mapped_taxonomies = array();
+  $field_keys = array_keys($fields);
   foreach ($map as $map_key => $map_data) {
 
     // get rid of fields that aren't being mapped
+
+    // if the map field is empty
     if (!is_array($map_data) && $map_data == '') {
       unset($map[$map_key]);
     }
@@ -111,40 +118,128 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
         if (array_shift($map[$map_key]) == '') {
           unset($map[$map_key]);
         }
+        else {
+          if (strstr($map_key, 'taxonomy:') !== FALSE) {
+            // add mapped taxonomy to a special little cloud in the sky...
+            $mapped_taxonomies[] = str_replace('taxonomy:', '', $map_key);
+          }
+        }
       //}
     }
   }
   // unset our key too
   //unset($map[variable_get('node_import_update_unique_key', '')]);
 
-  dpm(array('new map!', 'map' => $map));
+  // dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies));
 
   // remove all un-mapped $value data - this is to avoid overwriting the current
   // node with default node_import values
   $map_keys = array_keys($map);
+  unset($values['created']);
+
   foreach ($values as $vk => $vv) {
     
-    if (strstr($vk, 'taxonomy:') !== FALSE) {
+    if ($vk == 'taxonomy') {
       // we have a taxonomy field - check if it is mapped. if not, unset
-      foreach ($vv as $taxk => $taxv) {
-        if (empty($taxv)) {
-          unset($values[$vk][$taxk]);
+
+      // foreach tags as vid => terms
+      foreach ($vv['tags'] as $vocabid => $delimitted_terms) {
+
+        // if it isn't mapped, preserve the taxonomy as an array of comma-
+        // separated terms (as they would be form import)
+        // preserve stuffs
+          $preserved_vocabids = '';
+        if (!in_array($vocabid, $mapped_taxonomies)) {
+          //$preserved_vocabids[$vocabid] = $content['taxonomy']['tags'][$vocabid];
+
+          
+          foreach ($current_node['taxonomy'] as $tid => $tobj) {
+            if ($tobj->vid == $vocabid) {
+
+              $preserved_vocabids .= $tobj->name .',';
+
+            }
+          }
+
+          $current_node['taxonomy']['tags'][$vocabid] = rtrim($preserved_vocabids, ',');
+        }
+        else {
+          $current_node['taxonomy']['tags'][$vocabid] = $delimitted_terms;
+
         }
       }
+      /*
+      foreach ($preserved_vocabids as $vcid => $vcdata) {
+        $values['taxonomy']['tags'][$vcid] = $vcdata;
+      }
+      $current_node['taxonomy'] = $values['taxonomy'];
+      */
+      unset($values['taxonomy']);
+
     }
-    
-    if (!array_key_exists($vk, $current_node) && !in_array($vk, $map_keys) && !in_array('cck:'. $vk .':value', $map_keys)) {// && $vk != 'taxonomy') {
+    else {
+      /*
+       * if the key doesn't exist in current node
+       * AND the key doesn't exist in map
+       *
+       * AND the key cck:{key}:value doesn't exist in map - if the cck field isn't mapped
+       * AND it isn't a file list field
+       *
+       */
+      $key_exists_in_node  = array_key_exists($vk, $current_node);
+      $key_exists_in_map   = in_array($vk, $map_keys);
+
+      $is_mapped_cck_field = in_array('cck:'. $vk .':fid', $map_keys);
+      $is_a_cck_list_field = strstr($vk, ':list') || strstr($vk, ':data');
+  /*
+      $map = map keys
+
+      $values = has some creative shit, mang
+
+      $current_node = the current node
+  */
+      // keep it if it is some sort of extraneous cck field (eg. :list) TODO add to this list?
+
+      if (!($is_mapped_cck_field || $is_a_cck_list_field)) {
+        if (false) echo '<h3>fooing '. $vk .'</h1>';
+        if ($key_exists_in_node && !$key_exists_in_map) {
+          unset($values[$vk]);
+        }
+      }
+      else if (strstr($vk, ':data')) {
+        if (false) echo '<h3>fooingx '. $vk .'</h1>';
+        // TODO check for multiple fields
+        $cck_name_data = explode(':', $vk);
+
+        $values[$vk] = $current_node[$cck_name_data[1]][0]['data'];
+        
+      }
+      else if ($is_mapped_cck_field) {
+        // TODO add support for image / file info (alt & title)
+        // need to copy keys from $values to $current_node to import fields
+        $current_node[$vk] = $values[$vk];
+        if (false) echo '<h1>resetting cck field: '. $vk .'</h1>';
+      }
+    }
+
+/*
+    if ((!array_key_exists($vk, $current_node) && !in_array($vk, $map_keys)) && !in_array('cck:'. $vk .':value', $map_keys) && !strstr($vk, ':list')) {// && $vk != 'taxonomy') {
       unset($values[$vk]);
-      //echo '<h1> unsetting: '. $vk .'</h1>';
+      
       //dpm(array('unsetting' => $values[$vk]));
     }
+*/
   }
-
+//dpm(array('values before foreach' => $values, $current_node));
   foreach ($values as $v_key => $v_value) {
     //if (array_key_exists($cn_key, $values)) {
       $current_node[$v_key] = $v_value;
     //}
   }
+
+  $current_node['dim_length'] = $current_node['length'];
+  $current_node['dim_width']  = $current_node['width'];
+  $current_node['dim_height'] = $current_node['height'];
 
   $values = $current_node;//array_merge($current_node, $values);
   dpm(array('VALUES TO IMPORT' => $values));
@@ -158,7 +253,7 @@ return;
 
   
 
-  echo '<h1>hai</h1>';echo '<h1>hai</h1>';
+  
 
   foreach ($map as $map_key => $map_data) {
     /*
@@ -185,42 +280,29 @@ return;
      *
      */
     $mpdta = is_array($values[$map_key]) ? 'is an array' : $values[$map_key];
-echo '<h1 style="color:blue">-- MUP KOEY: '. $map_key .' -- map data: '. $mpdta .'</h1>';
+
     // if we have a cck field it's probably an array
     // @TODO do we really need to bug cck:field ?
     if (strstr($map_key, 'cck:field_')) {
-
-      echo '<h1 style="color:purple">we have a cck field</h1>';
       if (is_array($map_data)) {
-        echo '<h1>-- map data is an array</h1>';
         // if it isn't mapped, remove it from our map
         if (empty($map_data)) {
-          echo '<h1>-- map data is empty</h1>';
           unset($map[$map_key]);
         }
         else {
-          echo '<h1>-- map data is NOT empty</h1>';
           // cck field not empty, move the name over to $map
           $cck_fieldname = explode(':', $map_key);
           $cck_field = $cck_fieldname[1];
-          //$map[$map_key] = $map[$map_key];
-          
-          //$values[$cck_field] = $current_node[$map_key];
-
-          //$map[$cck_field][0] = $map[$map_key];
 
           $values[$cck_field] = array($map[$map_key]);
           $current_node[$cck_field]  = array($map[$map_key]);
 
           $values[$cck_field][0]['value'] = $values[$cck_field];
           //$current_node[$cck_field]  = array($map[$map_key]);
-          echo '<h1>values['. $cck_field .'][0][value] = '. $values[$cck_field] .'</h1>';
-          //
           unset($current_node[$cck_field]);
         }
       }
       elseif ($map[$map_key] == '') {
-        echo '<h1>-- map[map key] is empty</h1>';
         unset($map[$map_key]);
       }
       else {
@@ -363,6 +445,10 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         break;
 
       case 'preview':
+        //dpm(array('PREEVEUUUUE', $form, $form_state, $form_id));
+        break;
+      
+      case 'start':
         // add a notice to the preview page
         $niu_options = array(
           '#type' => 'item',
