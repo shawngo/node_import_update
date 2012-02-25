@@ -6,16 +6,16 @@
  */
 
 /**
- * Implementats hook_admin_settings() for configuring the module
+ * Implements hook_admin_settings() for configuring the module.
  */
 function node_import_update_admin_settings_form(&$form_state) {
   $form = array();
 
   $form['niu_settings'] = array(
-    '#title'       => 'Node Import Update settings',
-    '#type'        => 'fieldset',
+    '#title' => 'Node Import Update settings',
+    '#type' => 'fieldset',
     '#collapsible' => TRUE,
-    '#collapsed'   => FALSE,
+    '#collapsed' => FALSE,
     '#description' => 'Configuration settings',
   );
 

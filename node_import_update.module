@@ -4,7 +4,6 @@
  * @file
  * Update current nodes at node import.
  */
-
 define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
 
 /*
@@ -12,12 +11,13 @@ define('NODE_IMPORT_UPDATE_DEBUG', FALSE);
  *
  * preserve the $map values for later
  */
+
 function node_import_update_node_import_options_alter(&$form, $type, $options, $fields, $map) {
   variable_set('node_import_update_map_save', $map);
 }
 
 /*
- * Implementshook_node_import_values().
+ * Implements hook_node_import_values().
  *
  * Create an array of values to submit to the form.
  *
@@ -40,75 +40,77 @@ function node_import_update_node_import_options_alter(&$form, $type, $options, $
  * @return
  *   Array of values to submit to a form. See hook_node_import_values().
  */
+
 function node_import_update_node_import_values($type, $defaults, $options, $fields, $preview) {
   /*
-  if ($preview) {
+    if ($preview) {
     dpm(array('from our new best friend node_import_update_node_import_values',
-        '$type' => $type,
-        '$data' => $data,
-        '$map' => $map,
-        '$defaults' => $defaults,
-        '$options' => $options,
-        '$fields' => $fields,
-        'preview' => $preview,
+    '$type' => $type,
+    '$data' => $data,
+    '$map' => $map,
+    '$defaults' => $defaults,
+    '$options' => $options,
+    '$fields' => $fields,
+    'preview' => $preview,
     ));
-  }
-  */
+    }
+   */
 }
 
 /**
- * Alter data for each row in the import
+ * Alter data for each row in the import.
  */
 function node_import_update_node_import_values_alter(&$values, $type, $defaults, $options, $fields, $preview) {
-  // return if this is a new node
-  if ($values['nid'] == '' || !variable_get('node_import_update_do_update', FALSE)) return;
+  // Return if this is a new node.
+  if ($values['nid'] == '' || !variable_get('node_import_update_do_update', FALSE)) {
+    return;
+  }
 
   $current_node = (array) node_load($values['nid']);
   $map = variable_get('node_import_update_map_save', array());
   /*
-  dpm(array('values and current_node, together at last (and map!)',
-      'current_node' => $current_node,
-      'values' => $values,
-      'map' => $map,
-      'other params',
-      'defaults' => $defaults,
-      'options' => $options,
-      'fields' => $fields,
-      'preview' => $preview,
-      ));
-  // */
+    dpm(array('values and current_node, together at last (and map!)',
+    'current_node' => $current_node,
+    'values' => $values,
+    'map' => $map,
+    'other params',
+    'defaults' => $defaults,
+    'options' => $options,
+    'fields' => $fields,
+    'preview' => $preview,
+    ));
+    // */
   $mapped_taxonomies = array();
   $field_keys = array_keys($fields);
 
-  // get rid of fields that aren't being mapped
+  // Get rid of fields that aren't being mapped.
   foreach ($map as $map_key => $map_data) {
 
-    // if the map field is empty
+    // If the map field is empty.
     if (!is_array($map_data) && $map_data == '') {
       unset($map[$map_key]);
     }
     elseif (is_array($map_data)) {
       // @TODO if array data is not mapped, kill it too
       // if (strstr($map_key, 'taxonomy:') !== FALSE) {
-        // taxonomy field
-        if (array_shift($map[$map_key]) == '') {
-          // @TODO this is questionable
-          unset($map[$map_key]);
+      // taxonomy field
+      if (array_shift($map[$map_key]) == '') {
+        // @TODO this is questionable
+        unset($map[$map_key]);
+      }
+      else {
+        if (strstr($map_key, 'taxonomy:') !== FALSE) {
+          // Add mapped taxonomy to a special little cloud in the sky...
+          $mapped_taxonomies[] = str_replace('taxonomy:', '', $map_key);
         }
-        else {
-          if (strstr($map_key, 'taxonomy:') !== FALSE) {
-            // add mapped taxonomy to a special little cloud in the sky...
-            $mapped_taxonomies[] = str_replace('taxonomy:', '', $map_key);
-          }
-        }
+      }
       // }
     }
   }
 
   // dpm(array('new map!', 'map' => $map, 'mapped_taxonomies' => $mapped_taxonomies, 'current node' => $current_node, 'values' => $values));
-
-  // remove all un-mapped $value data - this is to avoid overwriting the current
-  // node with default node_import values
+  // Remove all un-mapped $value data. This is to avoid overwriting the current.
+  // Node with default node_import values.
   $map_keys = array_keys($map);
   unset($values['created']);
 
@@ -122,19 +124,18 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
   foreach ($values as $vk => $vv) {
 
     if ($vk == 'taxonomy') {
-      // we have a taxonomy field - check if it is mapped. if not, unset
-      // foreach tags as vid => terms
+      // We have a taxonomy field - check if it is mapped. if not, unset.
+      // For each tags as vid => terms.
       foreach ($vv['tags'] as $vocabid => $delimitted_terms) {
 
-        // if it isn't mapped, preserve the taxonomy as an array of comma-
-        // separated terms (as they would be form import)
-        // preserve stuffs
-          $preserved_vocabids = '';
+        // If it isn't mapped, preserve the taxonomy as an array of comma-
+        // separated terms (as they would be form import).
+        $preserved_vocabids = '';
         if (!in_array($vocabid, $mapped_taxonomies)) {
 
           foreach ($current_node['taxonomy'] as $tid => $tobj) {
             if ($tobj->vid == $vocabid) {
-              $preserved_vocabids .= $tobj->name .',';
+              $preserved_vocabids .= $tobj->name . ',';
             }
           }
           $current_node['taxonomy']['tags'][$vocabid] = rtrim($preserved_vocabids, ',');
@@ -144,63 +145,60 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
         }
       }
       /*
-      foreach ($preserved_vocabids as $vcid => $vcdata) {
+        foreach ($preserved_vocabids as $vcid => $vcdata) {
         $values['taxonomy']['tags'][$vcid] = $vcdata;
-      }
-      $current_node['taxonomy'] = $values['taxonomy'];
-      */
+        }
+        $current_node['taxonomy'] = $values['taxonomy'];
+       */
       unset($values['taxonomy']);
-
     }
     else {
       /*
-       * if the key doesn't exist in current node
+       * If the key doesn't exist in current node
        * AND the key doesn't exist in map
-       *
        * AND the key cck:{key}:value doesn't exist in map - if the cck field isn't mapped
-       * AND it isn't a file list field
+       * AND it isn't a file list field.
        */
-      $key_exists_in_node  = array_key_exists($vk, $current_node);
-      $key_exists_in_map   = in_array($vk, $map_keys);
+      $key_exists_in_node = array_key_exists($vk, $current_node);
+      $key_exists_in_map = in_array($vk, $map_keys);
 
-      $is_mapped_cck_field = in_array('cck:'. $vk .':fid', $map_keys);
+      $is_mapped_cck_field = in_array('cck:' . $vk . ':fid', $map_keys);
       $is_a_cck_list_field = strstr($vk, ':list') || strstr($vk, ':data');
 
-      // keep it if it is some sort of extraneous cck field (eg. :list) TODO add to this list?
+      // Keep it if it is some sort of extraneous cck field (eg. :list)
+      // @TODO add to this list?
       if (!($is_mapped_cck_field || $is_a_cck_list_field)) {
         if ($key_exists_in_node && !$key_exists_in_map) {
           unset($values[$vk]);
         }
       }
       elseif (strstr($vk, ':data')) {
-        // @TODO check for multiple fields
+        // @TODO check for multiple fields.
         $cck_name_data = explode(':', $vk);
         $values[$vk] = $current_node[$cck_name_data[1]][0]['data'];
       }
       elseif ($is_mapped_cck_field) {
         // @TODO add support for image / file info (alt & title)
-        // need to copy keys from $values to $current_node to import fields
+        // need to copy keys from $values to $current_node to import fields.
         $current_node[$vk] = $values[$vk];
       }
     }
-
   }
 
   foreach ($values as $v_key => $v_value) {
     $current_node[$v_key] = $v_value;
   }
 
-  // these jerks wouldn't move over...
+  // @TODO - this seems like custom fields or module-specific fields.
   $current_node['dim_length'] = $current_node['length'];
-  $current_node['dim_width']  = $current_node['width'];
+  $current_node['dim_width'] = $current_node['width'];
   $current_node['dim_height'] = $current_node['height'];
 
   $values = $current_node;
-
 }
 
 /**
- * Implementshook_menu().
+ * Implements hook_menu().
  */
 function node_import_update_menu() {
   $items = array();
@@ -238,7 +236,7 @@ function node_import_update_check_validate($element, &$form_state) {
 }
 
 /**
- * Implementshook_form_alter().
+ * Implements hook_form_alter().
  */
 function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
@@ -308,16 +306,15 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
      * import or else executing the import update.
      * Search for nodes to update.
      */
-
     // Node type to be imported
     $import_node_type = variable_get('node_import_update_content_type', '');
     // Settting: update date/time value?
-    $import_update_datetime  = variable_get('node_import_update_update_date', TRUE);
+    $import_update_datetime = variable_get('node_import_update_update_date', TRUE);
 
     // Alter node edit form
-    if ($form_id == $import_node_type .'_node_form') {
+    if ($form_id == $import_node_type . '_node_form') {
       // Import field that holds the unique identifier
-      $import_unique_id_name   = variable_get('node_import_update_unique_key', FALSE);
+      $import_unique_id_name = variable_get('node_import_update_unique_key', FALSE);
       // Is the identifier a CCK field?
       $import_unique_id_is_cck = variable_get('node_import_update_is_cck', FALSE);
 
@@ -325,7 +322,6 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
       $import_unique_id_is_uc = FALSE;
 
       // Check if item exists so we can update it rather than importing a new node
-
       // are we keying off of a cck field?
       if ($import_unique_id_is_cck) {
         // get unique id from cck fields
@@ -369,8 +365,8 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
         if (!empty($row['nid'])) {
 
           // Set nid and vid to that node
-          $form['nid']['#value']= intval($row['nid']);
-          $form['vid']['#value']= intval($row['vid']);
+          $form['nid']['#value'] = intval($row['nid']);
+          $form['vid']['#value'] = intval($row['vid']);
           $node = node_load($row['nid'], $row['vid']);
           $form['#node'] = $node;
 
@@ -390,9 +386,8 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
-
 /**
- * Implementshook_node_import_fields() to add the nid field.
+ * Implements hook_node_import_fields() to add the nid field.
  *
  * @param $type
  *   the content type being updated
@@ -405,8 +400,8 @@ function node_import_update_node_import_fields($type) {
   if (!variable_get('node_import_update_do_update', FALSE)) {
     return array();
   }
-  // add the Node ID field to use as update key (unique value to search for nodes
-  // when executing node import
+  // Add the Node ID field to use as update key (unique value to search for
+  // nodes when executing node import.
   $fields = array(
     'nid' => array(
       'title' => 'Node id',
@@ -419,16 +414,14 @@ function node_import_update_node_import_fields($type) {
   return $fields;
 }
 
-
 /**
- * Implementshook_theme_registry_alter().
+ * Implements hook_theme_registry_alter().
  */
 function node_import_update_theme_registry_alter(&$theme_registry) {
   if (!empty($theme_registry['node_import_field_table'])) {
     $theme_registry['node_import_field_table']['function'] = 'node_import_update_node_import_field_table';
   }
 }
-
 
 /**
  * Theme the mapping, defaults and options tables.
@@ -441,7 +434,7 @@ function node_import_update_node_import_field_table(&$form) {
   $rows = array();
   $groups = array();
 
-  // update table/form during "map" page in import wizard
+  // Update table/form during "map" page in import wizard.
   $map_unique_key = ('map' == $form['#parents'][0]);
   $node_import_update_unique_key = variable_get('node_import_update_unique_key', 'nid');
 
@@ -451,14 +444,11 @@ function node_import_update_node_import_field_table(&$form) {
     $colspan = 3;
   }
   else {
-    // use node_import's default table theme function
+    // Use node_import's default table theme function.
     return theme_node_import_field_table($form);
   }
 
-  /**
-   * loop over the form elements
-   */
-
+  // Loop over the form elements.
   foreach (element_children($form) as $child) {
     if (!isset($form[$child]['#type']) || $form[$child]['#type'] != 'value') {
       $title = check_plain($form[$child]['#title']);
@@ -474,9 +464,8 @@ function node_import_update_node_import_field_table(&$form) {
        *   map[taxonomy:1][]
        *   map[node_import_update_unique_key][taxonomy:1][]
        */
-
       if ($map_unique_key && unique_qualifier($child)) {
-        // add radio buttons for unique keys
+        // Add radio buttons for unique keys.
         $form['node_import_update_unique_key'][$child] = array(
           '#name' => 'map[node_import_update_unique_key]',
           '#type' => 'radio',
@@ -489,7 +478,6 @@ function node_import_update_node_import_field_table(&$form) {
         }
 
         $element = drupal_render($form['node_import_update_unique_key'][$child]);
-
       }
       else {
         $element = '';
@@ -524,7 +512,7 @@ function node_import_update_node_import_field_table(&$form) {
 }
 
 function node_import_update_unique_value_check($form, &$form_state) {
-  // @TODO decide whether to keep this in storage
+  // @TODO decide whether to keep this in storage.
   $form_state['storage']['node_import_update_unique_key'] = $form_state['clicked_button']['#post']['map']['node_import_update_unique_key'];
   variable_set('node_import_update_unique_key', $form_state['storage']['node_import_update_unique_key']);
 }
@@ -544,23 +532,24 @@ function node_import_update_unique_key_validate($element, &$form_state) {
 }
 
 /**
- * Check if the item is a unique field that can be used as a unique identifier
+ * Check if the item is a unique field that can be used as a unique identifier.
  */
 function unique_qualifier($item) {
   $unique = array('title', 'model', 'nid');
-  $pattern = "/^cck:[a-zA-Z_]+:value$/"; // Example: cck:field_product_text_field:value
+  // Example: cck:field_product_text_field:value.
+  $pattern = "/^cck:[a-zA-Z_]+:value$/";
   return preg_match($pattern, $item) || in_array($item, $unique);
 }
 
-
 if (module_exists('nodewords_basic')) {
+
   function nodewords_node_import_fields($type) {
     $fields = array();
     $weight = 1;
     if (variable_get('nodewords_edit_metatags_' . $type, TRUE)) {
       $xfields = nodewords_basic_nodewords_tags_info();
       foreach ($xfields as $key => $field_data) {
-        $fields['nodewords_'. $key] = array(
+        $fields['nodewords_' . $key] = array(
           'title' => t($field_data['widget:label']),
           'group' => t('Meta data'),
           'weight' => ++$weight,
@@ -569,4 +558,5 @@ if (module_exists('nodewords_basic')) {
     }
     return $fields;
   }
+
 }

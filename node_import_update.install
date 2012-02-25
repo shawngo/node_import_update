@@ -2,15 +2,15 @@
 
 /**
  * @file
- * Node Import Update: add node update capabilities to node_import
- * Install or remove variables
+ * Node Import Update: add node update capabilities to node_import.
+ * Remove settings variables.
  */
 
 /**
  * Implements hook_uninstall().
  */
 function node_import_update_uninstall() {
-  // Clear variables
+  // Clear variables.
   variable_del('node_import_update_content_type');
   variable_del('node_import_update_do_update');
   variable_del('node_import_update_is_cck');
