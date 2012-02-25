@@ -1,12 +1,12 @@
 <?php
-// $Id$
+
 /**
  * @file
  * Admin settings
  */
 
 /**
- * Implementation of hook_admin_settings() for configuring the module
+ * Implementats hook_admin_settings() for configuring the module
  */
 function node_import_update_admin_settings_form(&$form_state) {
   $form = array();

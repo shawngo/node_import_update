@@ -1,5 +1,5 @@
 <?php
-// $Id$
+
 /**
  * @file
  * Node Import Update: add node update capabilities to node_import
@@ -7,7 +7,7 @@
  */
 
 /**
- * Implementation of hook_uninstall().
+ * Implements hook_uninstall().
  */
 function node_import_update_uninstall() {
   // Clear variables

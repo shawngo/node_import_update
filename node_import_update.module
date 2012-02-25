@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * @file
@@ -18,7 +17,7 @@ function node_import_update_node_import_options_alter(&$form, $type, $options, $
 }
 
 /*
- * Implementation of hook_node_import_values().
+ * Implementshook_node_import_values().
  *
  * Create an array of values to submit to the form.
  *
@@ -201,7 +200,7 @@ function node_import_update_node_import_values_alter(&$values, $type, $defaults,
 }
 
 /**
- * Implementation of hook_menu().
+ * Implementshook_menu().
  */
 function node_import_update_menu() {
   $items = array();
@@ -215,6 +214,13 @@ function node_import_update_menu() {
     'type' => MENU_LOCAL_TASK,
   );
   return $items;
+}
+
+/**
+ * Implements hook_perm().
+ */
+function node_import_update_perm() {
+  return array('administer node import update');
 }
 
 /**
@@ -232,7 +238,7 @@ function node_import_update_check_validate($element, &$form_state) {
 }
 
 /**
- * Implementation of hook_form_alter().
+ * Implementshook_form_alter().
  */
 function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
@@ -386,7 +392,7 @@ function node_import_update_form_alter(&$form, &$form_state, $form_id) {
 
 
 /**
- * Implementation of hook_node_import_fields() to add the nid field.
+ * Implementshook_node_import_fields() to add the nid field.
  *
  * @param $type
  *   the content type being updated
@@ -415,7 +421,7 @@ function node_import_update_node_import_fields($type) {
 
 
 /**
- * Implementation of hook_theme_registry_alter().
+ * Implementshook_theme_registry_alter().
  */
 function node_import_update_theme_registry_alter(&$theme_registry) {
   if (!empty($theme_registry['node_import_field_table'])) {
